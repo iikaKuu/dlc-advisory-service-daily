@@ -50,7 +50,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:1
 </div>
 <div class="add-form">
 <div class="form-row">
-<input class="input-title" type="text" id="titleInput" placeholder="標題" />
+<input class="input-title" type="text" id="titleInput" placeholder="標題" oninput="autoPriority()" />
 <select id="priorityInput">
 <option value="3" id="t-p-high">🔴 高重要度</option>
 <option value="2" id="t-p-mid">🟠 中重要度</option>
@@ -63,7 +63,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:1
 </select>
 <input type="date" id="dateInput" />
 </div>
-<textarea id="descInput" style="width:100%;height:60px;margin-bottom:10px;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px" placeholder="詳情"></textarea>
+<textarea id="descInput" style="width:100%;height:60px;margin-bottom:10px;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px" placeholder="詳情" oninput="autoPriority()"></textarea>
 <button class="btn btn-add" onclick="addTask()" id="t-btn-add">新增記錄</button>
 </div>
 <div class="date-nav">
@@ -82,6 +82,27 @@ const i18n={
 zh:{app:'工作日誌',user:'當前用戶',add_u:'+ 新增用戶',title:'工作標題（必填）',desc:'工作詳情',high:'🔴 高重要度',mid:'🟠 中重要度',low:'🟢 低重要度',todo:'未完成',prog:'進行中',done:'已完成',add_b:'新增記錄',prev:'前一天',next:'後一天',empty:'暫無記錄',del:'刪除',confirm_del:'確定刪除？',p_label:'重要度'},
 en:{app:'Work Diary',user:'User',add_u:'+ New User',title:'Task Title',desc:'Details',high:'🔴 High Priority',mid:'🟠 Mid Priority',low:'🟢 Low Priority',todo:'To Do',prog:'In Progress',done:'Done',add_b:'Add Record',prev:'Prev Day',next:'Next Day',empty:'No Records',del:'Delete',confirm_del:'Delete this?',p_label:'Priority'}
 };
+
+const keywords = {
+  high: ['截止', 'deadline', '今日', 'urgent', '即日', '限期', '投訴', 'complaint', '合規', 'compliance', '監管', 'regulatory', '審計', 'audit', '轉賬', '付款', 'payment', '結算', 'settlement', '對賬', '董事', 'management', '總監', '匯報', 'presentation', '緊急', 'immediate'],
+  mid: ['跟進', 'follow up', '回覆', 'reply', '更新', 'update', '會議', 'meeting', 'conference', '文件', 'document', '報告', 'report', '合同', 'contract', '客戶', 'client', 'customer', '查詢', 'enquiry', '協調', '安排', 'prepare', '準備']
+};
+
+function autoPriority() {
+  const title = document.getElementById('titleInput').value.toLowerCase();
+  const desc = document.getElementById('descInput').value.toLowerCase();
+  const fullText = title + desc;
+  
+  let detected = '1'; // Default Low
+  if (keywords.high.some(k => fullText.includes(k))) {
+    detected = '3';
+  } else if (keywords.mid.some(k => fullText.includes(k))) {
+    detected = '2';
+  }
+  
+  document.getElementById('priorityInput').value = detected;
+}
+
 function toggleLang(){lang=lang==='zh'?'en':'zh';localStorage.setItem('diary_lang',lang);updateUI();}
 function updateUI(){
 const t=i18n[lang];
