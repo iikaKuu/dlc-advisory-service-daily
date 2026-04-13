@@ -1,6 +1,221 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+<head><!DOCTYPE html>
+<html lang="zh-TW">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作日誌 | Work Diary</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:100vh;color:#2d3748}
+.header{background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.header h1{font-size:1.3rem;font-weight:700}
+.lang-toggle{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600}
+.container{max-width:860px;margin:0 auto;padding:20px 16px}
+.user-switch{background:#edf2f7;border-radius:12px;padding:12px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px}
+.user-switch select{flex:1;border:1.5px solid #cbd5e0;border-radius:8px;padding:6px 12px;outline:none;background:white}
+.add-form{background:white;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.form-row input,.form-row textarea,.form-row select{border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;outline:none;font-family:inherit}
+.priority-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;margin-left:8px}
+.p-high{background:#fff5f5;color:#c53030;border:1px solid #feb2b2}
+.p-mid{background:#fffaf0;color:#9c4221;border:1px solid #fbd38d}
+.p-low{background:#f0fff4;color:#276749;border:1px solid #9ae6b4}
+.btn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600}
+.btn-add{background:#667eea;color:white}
+.date-nav{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.date-nav button{background:white;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer}
+.tasks-list{display:flex;flex-direction:column;gap:10px}
+.task-card{background:white;border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);display:flex;align-items:flex-start;gap:12px}
+.task-body{flex:1}
+.task-title{font-weight:600;font-size:.95rem;margin-bottom:4px}
+.task-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.task-user{font-size:.7rem;color:#718096;background:#edf2f7;padding:2px 6px;border-radius:4px}
+.task-desc{font-size:.85rem;color:#4a5568;margin-top:4px}
+.status-badge{padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600}
+.badge-todo{background:#fed7d7;color:#c53030}
+.badge-in_progress{background:#fefcbf;color:#b7791f}
+.badge-done{background:#c6f6d5;color:#276749}
+.btn-sm{padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:.8rem;background:white}
+.task-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.empty{text-align:center;color:#a0aec0;padding:30px 0;font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1 id="t-app-title">工作日誌</h1>
+  <button class="lang-toggle" id="langBtn" onclick="toggleLang()">English</button>
+</div>
+<div class="container">
+  <div class="user-switch">
+    <span id="t-cur-user">👤 當前用戶:</span>
+    <select id="currentUserSelect" onchange="switchUser(this.value)"></select>
+    <button class="btn btn-add" id="t-add-user" onclick="addUser()">+ 新增用戶</button>
+  </div>
+  <div class="add-form">
+    <div class="form-row">
+      <input class="input-title" type="text" id="titleInput" placeholder="標題" oninput="autoPriority()" style="flex:2;min-width:160px">
+      <select id="priorityInput">
+        <option value="3" id="t-p-high">🔴 高重要度</option>
+        <option value="2" id="t-p-mid">🟠 中重要度</option>
+        <option value="1" id="t-p-low">🟢 低重要度</option>
+      </select>
+      <select id="statusInput">
+        <option value="todo" id="t-s-todo">未完成</option>
+        <option value="in_progress" id="t-s-progress">進行中</option>
+        <option value="done" id="t-s-done">已完成</option>
+      </select>
+      <input type="date" id="dateInput">
+    </div>
+    <div class="form-row">
+      <textarea id="descInput" placeholder="工作詳情" rows="2" style="flex:1;min-width:200px" oninput="autoPriority()"></textarea>
+    </div>
+    <button class="btn btn-add" id="t-btn-add" onclick="addTask()">新增记录</button>
+  </div>
+  <div class="date-nav">
+    <button id="t-prev" onclick="changeDate(-1)">前一天</button>
+    <input type="date" id="filterDate" onchange="loadTasks()">
+    <button id="t-next" onclick="changeDate(1)">後一天</button>
+  </div>
+  <div class="tasks-list" id="tasksList"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://opfuiqjlsqrxxpvvrwnp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ke6yX6yt3h402n-feQ6RaA_18N8_Vmy';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let lang = localStorage.getItem('diary_lang') || 'zh';
+const i18n = {
+  zh:{app:'工作日誌',user:'當前用戶',add_u:'+ 新增用戶',title:'工作標題（必填）',desc:'工作詳情',high:'🔴 高重要度',mid:'🟠 中重要度',low:'🟢 低重要度',todo:'未完成',prog:'進行中',done:'已完成',add_b:'新增記錄',prev:'前一天',next:'後一天',empty:'暫無記錄',del:'刪除',confirm_del:'確定刪除？'},
+  en:{app:'Work Diary',user:'User',add_u:'+ New User',title:'Task Title',desc:'Details',high:'🔴 High Priority',mid:'🟠 Mid Priority',low:'🟢 Low Priority',todo:'To Do',prog:'In Progress',done:'Done',add_b:'Add Record',prev:'Prev Day',next:'Next Day',empty:'No Records',del:'Delete',confirm_del:'Delete this?'}
+};
+
+// 1. 关键字关系 - 本地记忆 (localStorage)
+let keywords = JSON.parse(localStorage.getItem('diary_keywords')) || {
+  high:['截止','deadline','今日','urgent','即日','限期','投訴','complaint','合規','compliance','監管','regulatory','審計','audit','轉賬','付款','payment','結算','settlement','對賬','董事','management','總監','匯報','presentation','緊急','immediate'],
+  mid:['跟進','follow up','回覆','reply','更新','update','會議','meeting','conference','文件','document','報告','report','合同','contract','客戶','client','customer','查詢','enquiry','協調','安排','prepare','準備']
+};
+
+function autoPriority() {
+  const fullText = (document.getElementById('titleInput').value + document.getElementById('descInput').value).toLowerCase();
+  let detected = '1';
+  if (keywords.high.some(k => fullText.includes(k.toLowerCase()))) detected = '3';
+  else if (keywords.mid.some(k => fullText.includes(k.toLowerCase()))) detected = '2';
+  document.getElementById('priorityInput').value = detected;
+}
+
+function toggleLang(){lang=lang==='zh'?'en':'zh';localStorage.setItem('diary_lang',lang);updateUI();}
+
+function updateUI(){
+  const t=i18n[lang];
+  document.getElementById('t-app-title').textContent=t.app;
+  document.getElementById('langBtn').textContent=lang==='zh'?'English':'繁體中文';
+  document.getElementById('t-cur-user').textContent='👤 '+t.user+':';
+  document.getElementById('t-add-user').textContent=t.add_u;
+  document.getElementById('titleInput').placeholder=t.title;
+  document.getElementById('descInput').placeholder=t.desc;
+  document.getElementById('t-p-high').textContent=t.high;
+  document.getElementById('t-p-mid').textContent=t.mid;
+  document.getElementById('t-p-low').textContent=t.low;
+  document.getElementById('t-s-todo').textContent=t.todo;
+  document.getElementById('t-s-progress').textContent=t.prog;
+  document.getElementById('t-s-done').textContent=t.done;
+  document.getElementById('t-btn-add').textContent=t.add_b;
+  document.getElementById('t-prev').textContent=t.prev;
+  document.getElementById('t-next').textContent=t.next;
+  renderTasks();
+}
+
+function genId(){return Date.now()+'_'+Math.random().toString(36).slice(2,7);}
+
+let allTasks = [];
+let users = JSON.parse(localStorage.getItem('diary_users')||'["默认用户"]');
+let currentUser = localStorage.getItem('diary_current_user')||users[0];
+
+function saveUsers(){localStorage.setItem('diary_users',JSON.stringify(users));localStorage.setItem('diary_current_user',currentUser);}
+
+function initUsers(){
+  const sel=document.getElementById('currentUserSelect');
+  sel.innerHTML=users.map(u=>`<option value="${u}" ${u===currentUser?'selected':''}>${u}</option>`).join('');
+}
+
+function switchUser(val){currentUser=val;saveUsers();loadTasks();}
+function addUser(){const n=prompt('User Name:');if(n&&!users.includes(n)){users.push(n);currentUser=n;saveUsers();initUsers();loadTasks();}}
+
+async function loadTasks(){
+  const date = document.getElementById('filterDate').value;
+  const { data, error } = await sb.from('tasks').select('*').eq('date', date);
+  if(!error) {
+    allTasks = data;
+    renderTasks();
+  }
+}
+
+function renderTasks(){
+  const list=document.getElementById('tasksList');
+  const t_lang=i18n[lang];
+  const filtered=allTasks
+    .filter(t=>t.user===currentUser)
+    .sort((a,b)=>b.priority-a.priority);
+  if(!filtered.length){list.innerHTML='<div class="empty">'+t_lang.empty+'</div>';return;}
+  list.innerHTML=filtered.map(t=>{
+    const p=t.priority||1;
+    const pClass=p===3?'p-high':p===2?'p-mid':'p-low';
+    const pText=p===3?t_lang.high:p===2?t_lang.mid:t_lang.low;
+    return '<div class="task-card"><div class="task-body"><div class="task-meta"><span class="task-user">'+esc(t.user)+'</span><span class="priority-tag '+pClass+'">'+pText+'</span></div><div class="task-title">'+esc(t.title)+'</div><div class="task-desc">'+esc(t.desc)+'</div></div><div class="task-actions"><select class="btn-sm" onchange="updateStatus(\''+t.id+'\',this.value)"><option value="todo" '+(t.status==='todo'?'selected':'')+'>'+t_lang.todo+'</option><option value="in_progress" '+(t.status==='in_progress'?'selected':'')+'>'+t_lang.prog+'</option><option value="done" '+(t.status==='done'?'selected':'')+'>'+t_lang.done+'</option></select><button class="btn-sm" style="color:red" onclick="deleteTask(\''+t.id+'\')">${t_lang.del}</button></div></div>';
+  }).join('');
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function addTask(){
+  const title=document.getElementById('titleInput').value.trim();
+  const desc=document.getElementById('descInput').value.trim();
+  const status=document.getElementById('statusInput').value;
+  const date=document.getElementById('dateInput').value;
+  const priority=parseInt(document.getElementById('priorityInput').value);
+  if(!title)return;
+  
+  const { error } = await sb.from('tasks').insert({
+    title, desc, status, date, priority, user: currentUser
+  });
+  
+  if(!error) {
+    document.getElementById('titleInput').value='';
+    document.getElementById('descInput').value='';
+    loadTasks();
+  }
+}
+
+async function updateStatus(id, status){
+  const { error } = await sb.from('tasks').update({ status }).eq('id', id);
+  if(!error) loadTasks();
+}
+
+async function deleteTask(id){
+  if(confirm(i18n[lang].confirm_del)){
+    const { error } = await sb.from('tasks').delete().eq('id', id);
+    if(!error) loadTasks();
+  }
+}
+
+document.getElementById('filterDate').value=new Date().toISOString().slice(0,10);
+document.getElementById('dateInput').value=new Date().toISOString().slice(0,10);
+
+function changeDate(d){
+  const c=new Date(document.getElementById('filterDate').value+'T00:00:00');
+  c.setDate(c.getDate()+d);
+  document.getElementById('filterDate').value=c.toISOString().slice(0,10);
+  loadTasks();
+}
+
+updateUI();initUsers();loadTasks();
+</script>
+</body>
+</html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>工作日誌 | Work Diary</title>
