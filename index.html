@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作日誌</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:100vh;color:#2d3748}
+.header{background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.header h1{font-size:1.4rem;font-weight:700}
+.header .date{font-size:.9rem;opacity:.85}
+.container{max-width:860px;margin:0 auto;padding:20px 16px}
+.add-form{background:white;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.add-form h2{font-size:1rem;font-weight:600;margin-bottom:14px;color:#4a5568}
+.form-row{display:flex;gap:10px;flex-wrap:wrap}
+.form-row input,.form-row textarea,.form-row select{border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.9rem;outline:none;transition:border-color .2s;font-family:inherit}
+.form-row input:focus,.form-row textarea:focus,.form-row select:focus{border-color:#667eea}
+.input-title{flex:1;min-width:180px}
+.input-desc{width:100%;margin-top:8px;resize:vertical;min-height:60px}
+.select-status{min-width:130px}
+.btn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;transition:all .15s}
+.btn-add{background:#667eea;color:white;margin-top:8px}
+.btn-add:hover{background:#5a67d8}
+.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-btn{padding:6px 14px;border:1.5px solid #e2e8f0;border-radius:20px;background:white;cursor:pointer;font-size:.82rem;font-weight:500;color:#4a5568;transition:all .15s}
+.filter-btn.active{background:#667eea;border-color:#667eea;color:white}
+.date-nav{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.date-nav button{background:white;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:.85rem}
+.date-nav input[type=date]{border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:.85rem}
+.date-nav span{font-weight:600;font-size:.95rem}
+.tasks-list{display:flex;flex-direction:column;gap:10px}
+.task-card{background:white;border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);display:flex;align-items:flex-start;gap:12px;transition:box-shadow .15s}
+.task-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.task-card.done{opacity:.65}
+.status-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;white-space:nowrap;flex-shrink:0}
+.badge-todo{background:#fed7d7;color:#c53030}
+.badge-in_progress{background:#fefcbf;color:#b7791f}
+.badge-done{background:#c6f6d5;color:#276749}
+.task-body{flex:1}
+.task-title{font-weight:600;font-size:.95rem;margin-bottom:3px}
+.task-desc{color:#718096;font-size:.83rem;margin-bottom:6px;white-space:pre-wrap}
+.task-date{color:#a0aec0;font-size:.75rem}
+.task-actions{display:flex;gap:6px;flex-shrink:0}
+.btn-sm{padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:.78rem;font-weight:500;color:#4a5568;transition:all .15s}
+.btn-sm:hover{background:#f7fafc}
+.btn-del{color:#e53e3e;border-color:#fed7d7}
+.btn-del:hover{background:#fff5f5}
+.empty{text-align:center;padding:40px;color:#a0aec0;font-size:.9rem}
+.stats{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.stat{background:white;border-radius:10px;padding:12px 16px;flex:1;min-width:80px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.stat-num{font-size:1.5rem;font-weight:700;color:#667eea}
+.stat-label{font-size:.75rem;color:#718096;margin-top:2px}
+.loading{text-align:center;padding:30px;color:#a0aec0}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>&#128218; 工作日誌</h1>
+<span class="date" id="todayLabel"></span>
+</div>
+<div class="container">
+<div class="add-form">
+<h2>&#43; 新增工作記錄</h2>
+<div class="form-row">
+<input class="input-title" type="text" id="titleInput" placeholder="工作標題（必填）" />
+<select class="select-status" id="statusInput">
+<option value="todo">&#9679; 未完成</option>
+<option value="in_progress">&#9654; 進行中</option>
+<option value="done">&#10003; 已完成</option>
+</select>
+<input type="date" id="dateInput" />
+</div>
+<textarea class="input-desc" id="descInput" placeholder="工作詳情（選填）"></textarea>
+<button class="btn btn-add" onclick="addTask()">新增記錄</button>
+</div>
+<div class="stats">
+<div class="stat"><div class="stat-num" id="statTotal">-</div><div class="stat-label">全部</div></div>
+<div class="stat"><div class="stat-num" id="statTodo">-</div><div class="stat-label">未完成</div></div>
+<div class="stat"><div class="stat-num" id="statProgress">-</div><div class="stat-label">進行中</div></div>
+<div class="stat"><div class="stat-num" id="statDone">-</div><div class="stat-label">已完成</div></div>
+</div>
+<div class="date-nav">
+<button onclick="changeDate(-1)">&#9664; 前一天</button>
+<input type="date" id="filterDate" onchange="loadTasks()" />
+<button onclick="changeDate(1)">後一天 &#9654;</button>
+<button onclick="setToday()" style="margin-left:4px">今天</button>
+</div>
+<div class="filters">
+<button class="filter-btn active" onclick="setFilter('all',this)">全部</button>
+<button class="filter-btn" onclick="setFilter('todo',this)">未完成</button>
+<button class="filter-btn" onclick="setFilter('in_progress',this)">進行中</button>
+<button class="filter-btn" onclick="setFilter('done',this)">已完成</button>
+</div>
+<div class="tasks-list" id="tasksList"><div class="loading">載入中...</div></div>
+</div>
+<script>
+const SUPABASE_URL='https://opfuiqjlsqrxxpvvrwnp.supabase.co';
+const SUPABASE_KEY='sb_publishable_ke6yX6yt3h402n-feQ6RaA_18N8_Vmy';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let currentFilter='all';
+let allTasks=[];
+function today(){return new Date().toISOString().slice(0,10);}
+function fmt(d){const[y,m,day]=d.split('-');return `${y}年${m}月${day}日`;}
+document.getElementById('todayLabel').textContent=fmt(today());
+document.getElementById('filterDate').value=today();
+document.getElementById('dateInput').value=today();
+function setFilter(f,el){
+currentFilter=f;
+document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+el.classList.add('active');
+renderTasks();
+}
+function changeDate(d){
+const cur=new Date(document.getElementById('filterDate').value+'T00:00:00');
+cur.setDate(cur.getDate()+d);
+document.getElementById('filterDate').value=cur.toISOString().slice(0,10);
+loadTasks();
+}
+function setToday(){
+document.getElementById('filterDate').value=today();
+loadTasks();
+}
+async function loadTasks(){
+document.getElementById('tasksList').innerHTML='<div class="loading">載入中...</div>';
+const date=document.getElementById('filterDate').value;
+const {data,error}=await sb.from('tasks').select('*').eq('date',date).order('created_at',{ascending:false});
+if(error){document.getElementById('tasksList').innerHTML='<div class="empty">載入失敗：'+error.message+'</div>';return;}
+allTasks=data||[];
+updateStats();
+renderTasks();
+}
+function updateStats(){
+document.getElementById('statTotal').textContent=allTasks.length;
+document.getElementById('statTodo').textContent=allTasks.filter(t=>t.status==='todo').length;
+document.getElementById('statProgress').textContent=allTasks.filter(t=>t.status==='in_progress').length;
+document.getElementById('statDone').textContent=allTasks.filter(t=>t.status==='done').length;
+}
+function renderTasks(){
+const list=document.getElementById('tasksList');
+const filtered=currentFilter==='all'?allTasks:allTasks.filter(t=>t.status===currentFilter);
+if(!filtered.length){list.innerHTML='<div class="empty">暫無記錄</div>';return;}
+list.innerHTML=filtered.map(t=>`
+<div class="task-card ${t.status==='done'?'done':''}" id="card-${t.id}">
+<div class="task-body">
+<div class="task-title">${esc(t.title)}</div>
+${t.description?`<div class="task-desc">${esc(t.description)}</div>`:''}
+<div class="task-date">&#128197; ${fmt(t.date)}</div>
+</div>
+<div class="task-actions">
+<select class="btn-sm" onchange="updateStatus(${t.id},this.value)">
+<option value="todo" ${t.status==='todo'?'selected':''}>未完成</option>
+<option value="in_progress" ${t.status==='in_progress'?'selected':''}>進行中</option>
+<option value="done" ${t.status==='done'?'selected':''}>已完成</option>
+</select>
+<button class="btn-sm btn-del" onclick="deleteTask(${t.id})">刪除</button>
+</div>
+<span class="status-badge badge-${t.status}">${t.status==='todo'?'未完成':t.status==='in_progress'?'進行中':'已完成'}</span>
+</div>`).join('');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+async function addTask(){
+const title=document.getElementById('titleInput').value.trim();
+const desc=document.getElementById('descInput').value.trim();
+const status=document.getElementById('statusInput').value;
+const date=document.getElementById('dateInput').value;
+if(!title){alert('請輸入工作標題');return;}
+const {error}=await sb.from('tasks').insert([{title,description:desc,status,date}]);
+if(error){alert('新增失敗：'+error.message);return;}
+document.getElementById('titleInput').value='';
+document.getElementById('descInput').value='';
+document.getElementById('filterDate').value=date;
+await loadTasks();
+}
+async function updateStatus(id,status){
+const {error}=await sb.from('tasks').update({status,updated_at:new Date().toISOString()}).eq('id',id);
+if(error){alert('更新失敗：'+error.message);return;}
+await loadTasks();
+}
+async function deleteTask(id){
+if(!confirm('確定要刪除這條記錄嗎？'))return;
+const {error}=await sb.from('tasks').delete().eq('id',id);
+if(error){alert('刪除失敗：'+error.message);return;}
+await loadTasks();
+}
+loadTasks();
+</script>
+</body>
+</html>
